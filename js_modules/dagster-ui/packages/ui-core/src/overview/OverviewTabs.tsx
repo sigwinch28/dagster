@@ -23,6 +23,7 @@ export const OverviewTabs = <TData extends Record<string, any>>(props: Props<TDa
         <TabLink id="sensors" title="Sensors" to="/overview/sensors" />
         <TabLink id="resources" title="Resources" to="/overview/resources" />
         <TabLink id="backfills" title="Backfills" to="/overview/backfills" />
+        <TabLink id="failures" title="Failing Assets" to="/overview/failures" />
       </Tabs>
       {refreshState ? (
         <Box padding={{bottom: 8}}>

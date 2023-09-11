@@ -5,6 +5,7 @@ import {InstanceBackfills} from '../instance/InstanceBackfills';
 import {BackfillPage} from '../instance/backfill/BackfillPage';
 
 import {OverviewActivityRoot} from './OverviewActivityRoot';
+import {OverviewFailingAssetsRoot} from './OverviewFailingAssetsRoot';
 import {OverviewJobsRoot} from './OverviewJobsRoot';
 import {OverviewResourcesRoot} from './OverviewResourcesRoot';
 import {OverviewSchedulesRoot} from './OverviewSchedulesRoot';
@@ -33,6 +34,9 @@ export const OverviewRoot = () => {
       </Route>
       <Route path="/overview/resources">
         <OverviewResourcesRoot />
+      </Route>
+      <Route path="/overview/failures">
+        <OverviewFailingAssetsRoot />
       </Route>
       <Route path="*" render={() => <Redirect to="/overview/activity" />} />
     </Switch>
