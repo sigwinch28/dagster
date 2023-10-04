@@ -171,9 +171,16 @@ class PipesFileMessageReader(PipesMessageReader):
                 thread.join()
 
     def _reader_thread(self, handler: "PipesMessageHandler", is_resource_complete: Event) -> None:
-        for line in tail_file(self._path, lambda: is_resource_complete.is_set()):
-            message = json.loads(line)
-            handler.handle_message(message)
+        try:
+            for line in tail_file(self._path, lambda: is_resource_complete.is_set()):
+                message = json.loads(line)
+                handler.handle_message(message)
+        except:
+            handler.report_pipes_framework_exception(
+                f"{self.__class__.__name__} reader thread",
+                sys.exc_info(),
+            )
+            raise
 
     def no_messages_debug_text(self) -> str:
         return f"Attempted to read messages from file {self._path}."
@@ -324,20 +331,29 @@ class PipesBlobStoreMessageReader(PipesMessageReader):
         params: PipesParams,
         is_task_complete: Event,
     ) -> None:
-        start_or_last_download = datetime.datetime.now()
-        while True:
-            now = datetime.datetime.now()
-            if (now - start_or_last_download).seconds > self.interval or is_task_complete.is_set():
-                start_or_last_download = now
-                chunk = self.download_messages_chunk(self.counter, params)
-                if chunk:
-                    for line in chunk.split("\n"):
-                        message = json.loads(line)
-                        handler.handle_message(message)
-                    self.counter += 1
-                elif is_task_complete.is_set():
-                    break
-            time.sleep(1)
+        try:
+            start_or_last_download = datetime.datetime.now()
+            while True:
+                now = datetime.datetime.now()
+                if (
+                    now - start_or_last_download
+                ).seconds > self.interval or is_task_complete.is_set():
+                    start_or_last_download = now
+                    chunk = self.download_messages_chunk(self.counter, params)
+                    if chunk:
+                        for line in chunk.split("\n"):
+                            message = json.loads(line)
+                            handler.handle_message(message)
+                        self.counter += 1
+                    elif is_task_complete.is_set():
+                        break
+                time.sleep(1)
+        except:
+            handler.report_pipes_framework_exception(
+                f"{self.__class__.__name__} reader thread",
+                sys.exc_info(),
+            )
+            raise
 
 
 class PipesBlobStoreStdioReader(ABC):
