@@ -185,6 +185,10 @@ class AssetBackfillData(NamedTuple):
             self.target_subset.filter_asset_keys(root_asset_keys).iterate_asset_partitions()
         )
 
+    def get_target_partitions_subset(self, asset_key: AssetKey) -> PartitionsSubset:
+        # Return the targeted partitions for the root partitioned asset keys
+        return self.target_subset.get_partitions_subset(asset_key)
+
     def get_target_root_partitions_subset(self) -> PartitionsSubset:
         """Returns the most upstream partitions subset that was targeted by the backfill."""
         partitioned_asset_keys = {
