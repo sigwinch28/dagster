@@ -37,7 +37,11 @@ from dagster._core.errors import DagsterPipesExecutionError
 from dagster._core.events import EngineEventData
 from dagster._core.execution.context.compute import OpExecutionContext
 from dagster._core.execution.context.invocation import BoundOpExecutionContext
-from dagster._utils.error import ExceptionInfo, serializable_error_info_from_exc_info
+from dagster._utils.error import (
+    ExceptionInfo,
+    SerializableErrorInfo,
+    serializable_error_info_from_exc_info,
+)
 
 if TYPE_CHECKING:
     from dagster._core.pipes.client import PipesMessageReader
@@ -135,7 +139,7 @@ class PipesMessageHandler:
         if message["method"] == "opened":
             pass
         elif message["method"] == "closed":
-            self._handle_closed()
+            self._handle_closed(message["params"])
         elif message["method"] == "report_asset_materialization":
             self._handle_report_asset_materialization(**message["params"])  # type: ignore
         elif message["method"] == "report_asset_check":
@@ -145,8 +149,16 @@ class PipesMessageHandler:
         else:
             raise DagsterPipesExecutionError(f"Unknown message method: {message['method']}")
 
-    def _handle_closed(self) -> None:
+    def _handle_closed(self, params: Optional[Mapping[str, Any]]) -> None:
         self._received_closed_msg = True
+        if params and "exception" in params:
+            err_info = SerializableErrorInfo.from_pipes_exc(params["exception"])
+            # report as an engine event to provide structured exception data
+            DagsterEvent.engine_event(
+                self._context.get_step_execution_context(),
+                "[pipes] external process pipes closed with exception",
+                EngineEventData(error=err_info),
+            )
 
     def _handle_report_asset_materialization(
         self,

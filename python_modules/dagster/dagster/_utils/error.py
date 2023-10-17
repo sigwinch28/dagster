@@ -1,11 +1,14 @@
 import traceback
 from types import TracebackType
-from typing import Any, NamedTuple, Optional, Sequence, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional, Sequence, Tuple, Type, Union
 
 from typing_extensions import TypeAlias
 
 import dagster._check as check
 from dagster._serdes import whitelist_for_serdes
+
+if TYPE_CHECKING:
+    from dagster_pipes import PipesException
 
 
 # mypy does not support recursive types, so "cause" has to be typed `Any`
@@ -62,6 +65,16 @@ class SerializableErrorInfo(
         This is done in cases when the context about the error should not be exposed to the user.
         """
         return SerializableErrorInfo(message=self.message, stack=[], cls_name=self.cls_name)
+
+    @classmethod
+    def from_pipes_exc(cls, exc: "PipesException"):
+        return cls(
+            message=exc["message"],
+            stack=exc["stack"],
+            cls_name=exc["name"],
+            cause=cls.from_pipes_exc(exc["cause"]) if exc["cause"] else None,
+            context=cls.from_pipes_exc(exc["context"]) if exc["context"] else None,
+        )
 
 
 def _serializable_error_info_from_tb(tb: traceback.TracebackException) -> SerializableErrorInfo:
