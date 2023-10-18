@@ -2647,6 +2647,11 @@ class TestEventLogStorage:
                 "foo": (run_id_1, records[1].storage_id),
                 "bar": (run_id_2, records[0].storage_id),
             }
+            assert storage.get_latest_asset_partition_materialization_attempts_without_materializations(
+                a, records[1].storage_id
+            ) == {
+                "bar": (run_id_2, records[0].storage_id),
+            }
 
             storage.store_event(
                 EventLogEntry(
