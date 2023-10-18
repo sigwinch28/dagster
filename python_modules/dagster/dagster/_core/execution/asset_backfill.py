@@ -329,7 +329,7 @@ class AssetBackfillData(NamedTuple):
         )
 
     @classmethod
-    def is_valid_serialization(cls, serialized: str, asset_graph: AssetGraph) -> bool:
+    def can_deserialize(cls, serialized: str, asset_graph: AssetGraph) -> bool:
         storage_dict = json.loads(serialized)
         return AssetGraphSubset.can_deserialize(
             storage_dict["serialized_target_subset"], asset_graph
@@ -676,6 +676,7 @@ def execute_asset_backfill_iteration(
         previous_asset_backfill_data = AssetBackfillData.from_serialized(
             backfill.serialized_asset_backfill_data, asset_graph, backfill.backfill_timestamp
         )
+        # TODO is it possible for different deserialization error to be raised?
     except DagsterDefinitionChangedDeserializationError as ex:
         unloadable_locations_error = (
             "This could be because it's inside a code location that's failing to load:"
