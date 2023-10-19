@@ -1162,7 +1162,7 @@ def from_serialized(
     partitions_def: Optional[PartitionsDefinition[T_str]],
     serialized: str,
     serialized_partitions_def_class_name: Optional[str],
-    error_on_partitions_def_changed: bool = True,
+    error_on_partitions_def_changes: bool = True,
 ) -> "PartitionsSubset":
     from .time_window_partitions import TimeWindowPartitionsDefinition, TimeWindowPartitionsSubset
 
@@ -1178,7 +1178,7 @@ def from_serialized(
             ):
                 return partitions_def.deserialize_subset(serialized)
 
-            if error_on_partitions_def_changed:
+            if error_on_partitions_def_changes:
                 raise DagsterDefinitionChangedDeserializationError(
                     "Cannot deserialize partitions subset. The partitions definition has changed"
                     " since storage-time. \n Storage-time partitions definition was an instance of"
@@ -1196,7 +1196,7 @@ def from_serialized(
             if isinstance(partitions_def, TimeWindowPartitionsDefinition):
                 return partitions_def.deserialize_subset(serialized)
 
-            if error_on_partitions_def_changed:
+            if error_on_partitions_def_changes:
                 raise DagsterDefinitionChangedDeserializationError(
                     "Cannot deserialize partitions subset. The partitions definition has changed"
                     " since storage-time. \n Storage-time partitions definition was an instance of"
@@ -1205,12 +1205,12 @@ def from_serialized(
                 )
 
             if TimeWindowPartitionsSubset.serialization_contains_time_partitions_def(serialized):
-                # Is not a time window partitions subset anymore
-                return TimeWindowPartitionsSubset.deserialize_when_partitions_def_changed(
-                    serialized
-                )
+                # No longer a TimeWindowPartitionsDefinition
+                return TimeWindowPartitionsSubset.deserialize_on_partitions_def_change(serialized)
+
             raise DagsterDefinitionChangedDeserializationError(
-                "Cannot deserialize partitions subset. The partitions definition has changed"
+                "Cannot deserialize partitions subset. The partitions definition has changed from"
+                f" a TimeWindowPartitionsDefinition to a {partitions_def.__class__.__name__}."
             )
         else:
             check.failed("should not reach")
@@ -1219,7 +1219,7 @@ def from_serialized(
             return partitions_def.deserialize_subset(serialized)
         else:
             raise DagsterDefinitionChangedDeserializationError(
-                "Cannot deserialize partitions subset. The partitions definition has changed"
+                "Cannot deserialize partitions subset. The partitions definition has been removed."
             )
 
 

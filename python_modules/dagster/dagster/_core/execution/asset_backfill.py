@@ -330,7 +330,6 @@ class AssetBackfillData(NamedTuple):
 
     @classmethod
     def can_deserialize(cls, serialized: str, asset_graph: AssetGraph) -> bool:
-        # Do we still need this method?
         storage_dict = json.loads(serialized)
         return AssetGraphSubset.can_deserialize(
             storage_dict["serialized_target_subset"], asset_graph
@@ -342,7 +341,7 @@ class AssetBackfillData(NamedTuple):
         serialized: str,
         asset_graph: AssetGraph,
         backfill_start_timestamp: float,
-        allow_partitions_def_changes: bool = False,
+        error_on_partitions_def_changes: bool = True,
     ) -> "AssetBackfillData":
         storage_dict = json.loads(serialized)
 
@@ -350,23 +349,23 @@ class AssetBackfillData(NamedTuple):
             target_subset=AssetGraphSubset.from_storage_dict(
                 storage_dict["serialized_target_subset"],
                 asset_graph,
-                error_on_partitions_def_changed=not allow_partitions_def_changes,
+                error_on_partitions_def_changes=error_on_partitions_def_changes,
             ),
             requested_runs_for_target_roots=storage_dict["requested_runs_for_target_roots"],
             requested_subset=AssetGraphSubset.from_storage_dict(
                 storage_dict["serialized_requested_subset"],
                 asset_graph,
-                error_on_partitions_def_changed=not allow_partitions_def_changes,
+                error_on_partitions_def_changes=error_on_partitions_def_changes,
             ),
             materialized_subset=AssetGraphSubset.from_storage_dict(
                 storage_dict["serialized_materialized_subset"],
                 asset_graph,
-                error_on_partitions_def_changed=not allow_partitions_def_changes,
+                error_on_partitions_def_changes=error_on_partitions_def_changes,
             ),
             failed_and_downstream_subset=AssetGraphSubset.from_storage_dict(
                 storage_dict["serialized_failed_subset"],
                 asset_graph,
-                error_on_partitions_def_changed=not allow_partitions_def_changes,
+                error_on_partitions_def_changes=error_on_partitions_def_changes,
             ),
             latest_storage_id=storage_dict["latest_storage_id"],
             backfill_start_time=utc_datetime_from_timestamp(backfill_start_timestamp),
@@ -689,7 +688,6 @@ def execute_asset_backfill_iteration(
         previous_asset_backfill_data = AssetBackfillData.from_serialized(
             backfill.serialized_asset_backfill_data, asset_graph, backfill.backfill_timestamp
         )
-        # TODO is it possible for different deserialization error to be raised?
     except DagsterDefinitionChangedDeserializationError as ex:
         unloadable_locations_error = (
             "This could be because it's inside a code location that's failing to load:"

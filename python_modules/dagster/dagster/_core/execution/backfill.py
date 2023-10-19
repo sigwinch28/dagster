@@ -154,7 +154,7 @@ class PartitionBackfill(
                     self.serialized_asset_backfill_data,
                     ExternalAssetGraph.from_workspace(workspace),
                     self.backfill_timestamp,
-                    allow_partitions_def_changes=True,
+                    error_on_partitions_def_changes=False,
                 )
             except DagsterDefinitionChangedDeserializationError:
                 return []
@@ -175,7 +175,7 @@ class PartitionBackfill(
                     self.serialized_asset_backfill_data,
                     ExternalAssetGraph.from_workspace(workspace),
                     self.backfill_timestamp,
-                    allow_partitions_def_changes=True,
+                    error_on_partitions_def_changes=False,
                 )
             except DagsterDefinitionChangedDeserializationError:
                 return None
@@ -194,7 +194,7 @@ class PartitionBackfill(
                     self.serialized_asset_backfill_data,
                     ExternalAssetGraph.from_workspace(workspace),
                     self.backfill_timestamp,
-                    allow_partitions_def_changes=True,
+                    error_on_partitions_def_changes=False,
                 )
             except DagsterDefinitionChangedDeserializationError:
                 return 0
@@ -216,7 +216,7 @@ class PartitionBackfill(
                     self.serialized_asset_backfill_data,
                     ExternalAssetGraph.from_workspace(workspace),
                     self.backfill_timestamp,
-                    allow_partitions_def_changes=True,
+                    error_on_partitions_def_changes=False,
                 )
             except DagsterDefinitionChangedDeserializationError:
                 return None

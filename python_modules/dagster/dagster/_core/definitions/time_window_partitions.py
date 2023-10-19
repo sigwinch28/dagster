@@ -1598,8 +1598,10 @@ class TimeWindowPartitionsSubset(PartitionsSubset):
 
         if isinstance(loaded, list):
             if partitions_def is None:
-                # TODO better error message
-                check.failed("No partitions def provided")
+                check.failed(
+                    "Cannot deserialize time partitions subset serialized as a list without a"
+                    " partitions definition"
+                )
 
             # backwards compatibility
             time_windows = cls.tuples_to_time_windows(partitions_def, loaded)
@@ -1613,8 +1615,10 @@ class TimeWindowPartitionsSubset(PartitionsSubset):
             version = loaded.get("version")
             if version is None or version == 1:
                 if partitions_def is None:
-                    # TODO better error message
-                    check.failed("No partitions def provided")
+                    check.failed(
+                        f"Cannot deserialize time partitions subset of version '{version}' without"
+                        " a partitions definition"
+                    )
 
                 time_windows = cls.tuples_to_time_windows(partitions_def, loaded["time_windows"])
                 num_partitions = loaded["num_partitions"]
@@ -1647,7 +1651,7 @@ class TimeWindowPartitionsSubset(PartitionsSubset):
         )
 
     @classmethod
-    def deserialize_when_partitions_def_changed(cls, serialized: str) -> "PartitionsSubset":
+    def deserialize_on_partitions_def_change(cls, serialized: str) -> "PartitionsSubset":
         partitions_def, time_windows, num_partitions = cls._deserialize(serialized, None)
         check.invariant(partitions_def is not None)
 

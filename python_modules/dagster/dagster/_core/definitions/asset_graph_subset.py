@@ -5,7 +5,6 @@ from typing import AbstractSet, Any, Callable, Dict, Iterable, Mapping, Optional
 
 from dagster import _check as check
 from dagster._core.definitions.partition import (
-    DefinitionChangedPartitionsSubset,
     PartitionsDefinition,
     PartitionsSubset,
     can_deserialize,
@@ -233,7 +232,7 @@ class AssetGraphSubset:
         cls,
         serialized_dict: Mapping[str, Any],
         asset_graph: AssetGraph,
-        error_on_partitions_def_changed: bool = True,
+        error_on_partitions_def_changes: bool = True,
     ) -> "AssetGraphSubset":
         serializable_partitions_ids = serialized_dict.get(
             "serializable_partitions_def_ids_by_asset_key", {}
@@ -247,7 +246,7 @@ class AssetGraphSubset:
             asset_key = AssetKey.from_user_string(key)
 
             if asset_key not in asset_graph.all_asset_keys:
-                if error_on_partitions_def_changed:
+                if error_on_partitions_def_changes:
                     raise DagsterDefinitionChangedDeserializationError(
                         f"Asset {key} existed at storage-time, but no longer does"
                     )
@@ -256,7 +255,7 @@ class AssetGraphSubset:
             partitions_def = asset_graph.get_partitions_def(asset_key)
 
             if partitions_def is None:
-                if error_on_partitions_def_changed:
+                if error_on_partitions_def_changes:
                     raise DagsterDefinitionChangedDeserializationError(
                         f"Asset {key} had a PartitionsDefinition at storage-time, but no longer"
                         " does"
@@ -271,7 +270,7 @@ class AssetGraphSubset:
                     key
                 ),
             ):
-                if error_on_partitions_def_changed:
+                if error_on_partitions_def_changes:
                     raise DagsterDefinitionChangedDeserializationError(
                         f"Cannot deserialize stored partitions subset for asset {key}. This likely"
                         " indicates that the partitions definition has changed since this was"
@@ -283,17 +282,8 @@ class AssetGraphSubset:
                 partitions_def,
                 value,
                 partitions_def_class_names_by_asset_key.get(key),
-                error_on_partitions_def_changed=error_on_partitions_def_changed,
+                error_on_partitions_def_changes=error_on_partitions_def_changes,
             )
-            if (
-                isinstance(partitions_subset, DefinitionChangedPartitionsSubset)
-                and error_on_partitions_def_changed
-            ):
-                raise DagsterDefinitionChangedDeserializationError(
-                    f"blah blah blah Cannot deserialize stored partitions subset for asset {key}."
-                    " This likely indicates that the partitions definition has changed since this"
-                    " was stored"
-                )
 
             partitions_subsets_by_asset_key[asset_key] = partitions_subset
 

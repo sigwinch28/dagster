@@ -3,17 +3,17 @@ from dagster import DailyPartitionsDefinition, MultiPartitionsDefinition, Static
 from dagster._core.definitions.multi_dimensional_partitions import MultiPartitionsSubset
 from dagster._core.definitions.partition import (
     DefaultPartitionsSubset,
+    DefinitionChangedPartitionsSubset,
     can_deserialize,
     from_serialized,
-    DefinitionChangedPartitionsSubset,
 )
 from dagster._core.definitions.time_window_partitions import (
     TimeWindowPartitionsDefinition,
     TimeWindowPartitionsSubset,
 )
 from dagster._core.errors import (
-    DagsterInvalidDeserializationVersionError,
     DagsterDefinitionChangedDeserializationError,
+    DagsterInvalidDeserializationVersionError,
 )
 
 from dagster_tests.definitions_tests.test_time_window_partitions import (
@@ -43,8 +43,8 @@ def test_default_subset_cannot_deserialize_invalid_version():
 static_partitions_def = StaticPartitionsDefinition(["foo", "bar", "baz", "qux"])
 SERIALIZED_DEFAULT_SUBSET_BY_VERSION = {
     "list_no_version": '["baz", "foo"]',
-    'version_1': '{"version": 1, "subset": ["foo", "baz"]}',
-    'current': (
+    "version_1": '{"version": 1, "subset": ["foo", "baz"]}',
+    "current": (
         StaticPartitionsDefinition(["foo", "bar", "baz", "qux"])
         .empty_subset()
         .with_partition_keys(["foo", "baz"])
@@ -101,14 +101,14 @@ def test_can_deserialize_default_changed_to_time(serialized_default_subset: str)
             time_window_partitions_def,
             serialized_default_subset,
             StaticPartitionsDefinition.__name__,
-            error_on_partitions_def_changed=True,
+            error_on_partitions_def_changes=True,
         )
 
     deserialized = from_serialized(
         time_window_partitions_def,
         serialized_default_subset,
         StaticPartitionsDefinition.__name__,
-        error_on_partitions_def_changed=False,
+        error_on_partitions_def_changes=False,
     )
     assert isinstance(deserialized, DefinitionChangedPartitionsSubset)
     assert deserialized.get_partition_keys() == {"baz", "foo"}
@@ -145,14 +145,14 @@ def test_can_deserialize_default_changed_to_unpartitioned(serialized_default_sub
             None,
             serialized_default_subset,
             StaticPartitionsDefinition.__name__,
-            error_on_partitions_def_changed=True,
+            error_on_partitions_def_changes=True,
         )
 
     deserialized = from_serialized(
         None,
         serialized_default_subset,
         StaticPartitionsDefinition.__name__,
-        error_on_partitions_def_changed=False,
+        error_on_partitions_def_changes=False,
     )
     assert isinstance(deserialized, DefinitionChangedPartitionsSubset)
     assert deserialized.get_partition_keys() == {"baz", "foo"}
@@ -172,8 +172,7 @@ def test_can_deserialize_time_subset_changed_to_static_no_class_name_uid(seriali
             serialized_time_subset,
             serialized_partitions_def_unique_id=None,
             serialized_partitions_def_class_name=None,
-        )
-        == False
+        ) is False
     )
 
 
@@ -205,7 +204,7 @@ def test_can_deserialize_time_subset_changed_to_unpartitioned(
             None,
             serialized_time_subset,
             TimeWindowPartitionsDefinition.__name__,
-            error_on_partitions_def_changed=False,
+            error_on_partitions_def_changes=False,
         )
 
     # If no partitions definition and no class name/uid, then we can't deserialize

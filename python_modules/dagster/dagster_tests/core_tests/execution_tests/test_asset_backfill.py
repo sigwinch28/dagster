@@ -789,8 +789,6 @@ def test_serialization(static_serialization, time_window_serialization):
 
     assert AssetBackfillData.can_deserialize(static_serialization, asset_graph) is True
 
-    # TODO add test
-
 
 def test_asset_backfill_status_counts():
     @asset
