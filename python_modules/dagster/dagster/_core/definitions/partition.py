@@ -1122,8 +1122,6 @@ def can_deserialize(
     serialized: str,
     serialized_partitions_def_unique_id: Optional[str],
     serialized_partitions_def_class_name: Optional[str],
-    # TODO check that we actually need this argument
-    do_not_allow_partitions_defs_changes: bool = True,
 ) -> bool:
     from .time_window_partitions import TimeWindowPartitionsDefinition, TimeWindowPartitionsSubset
 
@@ -1142,43 +1140,22 @@ def can_deserialize(
 
         # If the partitions def has been removed, we can't deserialize the subset
         return partitions_def.can_deserialize_subset(serialized) if partitions_def else False
-    else:
-        if serialized_partitions_def_class_name in [
-            partitions_def.__name__ for partitions_def in DEFAULT_PARTITIONS_SUBSET_PARTITIONS_DEFS
-        ]:
-            if partitions_def is None or not isinstance(
-                partitions_def, DEFAULT_PARTITIONS_SUBSET_PARTITIONS_DEFS
-            ):
-                if do_not_allow_partitions_defs_changes:
-                    # Partitions def changed from non-time to time or None
-                    return False
 
-            # Can always deserialize a default partitions subset
+    elif serialized_partitions_def_class_name in [
+        partitions_def.__name__ for partitions_def in DEFAULT_PARTITIONS_SUBSET_PARTITIONS_DEFS
+    ]:
+        return True  # Can always deserialize a default partitions subset
+
+    elif serialized_partitions_def_class_name in [
+        partitions_def.__name__ for partitions_def in TIME_PARTITIONS_SUBSET_PARTITIONS_DEFS
+    ]:
+        if partitions_def and isinstance(partitions_def, TimeWindowPartitionsDefinition):
             return True
-        elif serialized_partitions_def_class_name in [
-            partitions_def.__name__ for partitions_def in TIME_PARTITIONS_SUBSET_PARTITIONS_DEFS
-        ]:
-            if (
-                partitions_def
-                and partitions_def.get_serializable_unique_identifier()
-                == serialized_partitions_def_unique_id
-            ):
-                return True
+        else:  # No partitions def, or partitions def is not TimeWindowPartitionsDefinition
+            return TimeWindowPartitionsSubset.serialization_contains_time_partitions_def(serialized)
 
-            if partitions_def is None or not isinstance(
-                partitions_def, TimeWindowPartitionsDefinition
-            ):
-                if do_not_allow_partitions_defs_changes:
-                    # Partitions def changed from time to non-time or None
-                    return False
-                else:
-                    return TimeWindowPartitionsSubset.serialization_contains_time_partitions_def(
-                        serialized
-                    )
-            else:
-                return partitions_def.can_deserialize_subset(serialized)
-        else:
-            check.failed("should not reach")
+    else:
+        check.failed("should not reach")
 
 
 def from_serialized(

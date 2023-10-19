@@ -83,17 +83,6 @@ def test_can_deserialize_default_changed_to_time(serialized_default_subset: str)
             serialized_partitions_def_unique_id=static_partitions_def.get_serializable_unique_identifier(),
             serialized_partitions_def_class_name=StaticPartitionsDefinition.__name__,
         )
-        is False
-    )
-
-    assert (
-        can_deserialize(
-            time_window_partitions_def,
-            serialized_default_subset,
-            serialized_partitions_def_unique_id=static_partitions_def.get_serializable_unique_identifier(),
-            serialized_partitions_def_class_name=StaticPartitionsDefinition.__name__,
-            do_not_allow_partitions_defs_changes=False,
-        )
         is True
     )
 
@@ -137,17 +126,6 @@ def test_can_deserialize_default_changed_to_unpartitioned(serialized_default_sub
             serialized_default_subset,
             serialized_partitions_def_unique_id=static_partitions_def.get_serializable_unique_identifier(),
             serialized_partitions_def_class_name=StaticPartitionsDefinition.__name__,
-        )
-        is False
-    )
-
-    assert (
-        can_deserialize(
-            None,
-            serialized_default_subset,
-            serialized_partitions_def_unique_id=static_partitions_def.get_serializable_unique_identifier(),
-            serialized_partitions_def_class_name=StaticPartitionsDefinition.__name__,
-            do_not_allow_partitions_defs_changes=False,
         )
         is True
     )
@@ -218,7 +196,6 @@ def test_can_deserialize_time_subset_changed_to_unpartitioned(
         serialized_time_subset,
         serialized_partitions_def_unique_id=partitions_def.get_serializable_unique_identifier(),
         serialized_partitions_def_class_name=TimeWindowPartitionsDefinition.__name__,
-        do_not_allow_partitions_defs_changes=False,
     )
 
     assert deserializable == is_deserializable
@@ -238,7 +215,6 @@ def test_can_deserialize_time_subset_changed_to_unpartitioned(
             serialized_time_subset,
             serialized_partitions_def_unique_id=None,
             serialized_partitions_def_class_name=None,
-            do_not_allow_partitions_defs_changes=False,
         )
         is False
     )
