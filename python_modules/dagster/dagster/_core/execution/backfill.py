@@ -154,6 +154,7 @@ class PartitionBackfill(
                     self.serialized_asset_backfill_data,
                     ExternalAssetGraph.from_workspace(workspace),
                     self.backfill_timestamp,
+                    allow_partitions_def_changes=True,
                 )
             except DagsterDefinitionChangedDeserializationError:
                 return []
