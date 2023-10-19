@@ -44,11 +44,11 @@ from dagster._utils.warnings import (
 )
 
 from ..errors import (
+    DagsterDefinitionChangedDeserializationError,
     DagsterInvalidDefinitionError,
     DagsterInvalidDeserializationVersionError,
     DagsterInvalidInvocationError,
     DagsterUnknownPartitionError,
-    DagsterDefinitionChangedDeserializationError,
 )
 from .config import ConfigMapping
 from .utils import validate_tags
@@ -1081,9 +1081,8 @@ class DefinitionChangedPartitionsSubset(PartitionsSubset):
         raise NotImplementedError()
 
 
-def get_default_partitions_subset_partiitons_defs():
+def get_default_partitions_subset_partitions_defs():
     from .multi_dimensional_partitions import MultiPartitionsDefinition
-    from .time_window_partitions import TimeWindowPartitionsDefinition, TimeWindowPartitionsSubset
 
     DEFAULT_PARTITIONS_SUBSET_PARTITIONS_DEFS = tuple(
         [
@@ -1095,27 +1094,54 @@ def get_default_partitions_subset_partiitons_defs():
     return DEFAULT_PARTITIONS_SUBSET_PARTITIONS_DEFS
 
 
+def get_time_window_partitions_subset_partitions_defs():
+    from .time_window_partitions import (
+        DailyPartitionsDefinition,
+        HourlyPartitionsDefinition,
+        MonthlyPartitionsDefinition,
+        TimeWindowPartitionsDefinition,
+        WeeklyPartitionsDefinition,
+    )
+
+    # TODO Check if all asset evaluations are constructed from external asset graphs
+    # If they are, we only need to check for TimeWindowPartitionsDefinition
+    TIME_WINDOW_PARTITIONS_SUBSET_PARTITIONS_DEFS = tuple(
+        [
+            TimeWindowPartitionsDefinition,
+            HourlyPartitionsDefinition,
+            DailyPartitionsDefinition,
+            WeeklyPartitionsDefinition,
+            MonthlyPartitionsDefinition,
+        ]
+    )
+    return TIME_WINDOW_PARTITIONS_SUBSET_PARTITIONS_DEFS
+
+
 def can_deserialize(
     partitions_def: Optional[PartitionsDefinition[T_str]],
     serialized: str,
     serialized_partitions_def_unique_id: Optional[str],
     serialized_partitions_def_class_name: Optional[str],
+    # TODO check that we actually need this argument
     do_not_allow_partitions_defs_changes: bool = True,
 ) -> bool:
-    from .multi_dimensional_partitions import MultiPartitionsDefinition
     from .time_window_partitions import TimeWindowPartitionsDefinition, TimeWindowPartitionsSubset
 
-    DEFAULT_PARTITIONS_SUBSET_PARTITIONS_DEFS = get_default_partitions_subset_partiitons_defs()
+    DEFAULT_PARTITIONS_SUBSET_PARTITIONS_DEFS = get_default_partitions_subset_partitions_defs()
+    TIME_PARTITIONS_SUBSET_PARTITIONS_DEFS = get_time_window_partitions_subset_partitions_defs()
 
+    # These fields are serialized together in:
+    # (1) SerializedPartitionSubset
+    # (2) AssetBackfillData starting 1.1.20 (https://github.com/dagster-io/dagster/commit/49fb47f53e89bcec2fa0ecc314efb14fa01624b5)
     if serialized_partitions_def_class_name is None or serialized_partitions_def_unique_id is None:
-        # Have to rely on backcompat logic
-        if partitions_def:
-            return partitions_def.can_deserialize_subset(serialized)
-        else:
-            # Cases that would fall into this bucket:
-            # Partitions definition has been removed and this backfill is old
-            # At this point, we can't tell which type of partitions subset this is
-            return False
+        # Only asset backfills pre 1.1.20 should hit this case
+        check.invariant(
+            serialized_partitions_def_unique_id is None
+            and serialized_partitions_def_class_name is None
+        )
+
+        # If the partitions def has been removed, we can't deserialize the subset
+        return partitions_def.can_deserialize_subset(serialized) if partitions_def else False
     else:
         if serialized_partitions_def_class_name in [
             partitions_def.__name__ for partitions_def in DEFAULT_PARTITIONS_SUBSET_PARTITIONS_DEFS
@@ -1129,8 +1155,9 @@ def can_deserialize(
 
             # Can always deserialize a default partitions subset
             return True
-        elif serialized_partitions_def_class_name == TimeWindowPartitionsDefinition.__name__:
-            # time partitions subset
+        elif serialized_partitions_def_class_name in [
+            partitions_def.__name__ for partitions_def in TIME_PARTITIONS_SUBSET_PARTITIONS_DEFS
+        ]:
             if (
                 partitions_def
                 and partitions_def.get_serializable_unique_identifier()
@@ -1155,21 +1182,23 @@ def can_deserialize(
 
 
 def from_serialized(
-    partitions_def: PartitionsDefinition[T_str],
+    partitions_def: Optional[PartitionsDefinition[T_str]],
     serialized: str,
     serialized_partitions_def_class_name: Optional[str],
     error_on_partitions_def_changed: bool = True,
 ) -> "PartitionsSubset":
-    from .multi_dimensional_partitions import MultiPartitionsDefinition
     from .time_window_partitions import TimeWindowPartitionsDefinition, TimeWindowPartitionsSubset
 
-    DEFAULT_PARTITIONS_SUBSET_PARTITIONS_DEFS = get_default_partitions_subset_partiitons_defs()
+    DEFAULT_PARTITIONS_SUBSET_PARTITIONS_DEFS = get_default_partitions_subset_partitions_defs()
+    TIME_PARTITIONS_SUBSET_PARTITIONS_DEFS = get_time_window_partitions_subset_partitions_defs()
 
     if serialized_partitions_def_class_name:
         if serialized_partitions_def_class_name in [
             partitions_def.__name__ for partitions_def in DEFAULT_PARTITIONS_SUBSET_PARTITIONS_DEFS
         ]:
-            if isinstance(partitions_def, DEFAULT_PARTITIONS_SUBSET_PARTITIONS_DEFS):
+            if partitions_def and isinstance(
+                partitions_def, DEFAULT_PARTITIONS_SUBSET_PARTITIONS_DEFS
+            ):
                 return partitions_def.deserialize_subset(serialized)
 
             if error_on_partitions_def_changed:
@@ -1184,7 +1213,9 @@ def from_serialized(
                 serialized, serialized_partitions_def_class_name
             )
 
-        elif serialized_partitions_def_class_name == TimeWindowPartitionsDefinition.__name__:
+        elif serialized_partitions_def_class_name in [
+            partitions_def.__name__ for partitions_def in TIME_PARTITIONS_SUBSET_PARTITIONS_DEFS
+        ]:
             if isinstance(partitions_def, TimeWindowPartitionsDefinition):
                 return partitions_def.deserialize_subset(serialized)
 
@@ -1359,8 +1390,10 @@ class DefaultPartitionsSubset(PartitionsSubset[T_str]):
     @classmethod
     def can_deserialize(cls, partitions_def: PartitionsDefinition[T_str], serialized: str) -> bool:
         data = json.loads(serialized)
-        return isinstance(data, list) or (
-            data.get("subset") is not None and data.get("version") == cls.SERIALIZATION_VERSION
+        return (isinstance(data, list) and all(isinstance(val, str) for val in data)) or (
+            isinstance(data, dict)
+            and data.get("subset") is not None
+            and data.get("version") == cls.SERIALIZATION_VERSION
         )
 
     @property

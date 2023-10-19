@@ -23,23 +23,22 @@ from typing import (
 
 import pendulum
 
-from dagster._serdes import serialize_value, deserialize_value
-
 import dagster._check as check
 from dagster._annotations import PublicAttr, public
 from dagster._core.instance import DynamicPartitionsStore
+from dagster._serdes import deserialize_value, serialize_value, whitelist_for_serdes
+from dagster._serdes.serdes import FieldSerializer
+from dagster._utils import utc_datetime_from_timestamp
 from dagster._utils.partitions import DEFAULT_HOURLY_FORMAT_WITHOUT_TIMEZONE
 from dagster._utils.schedules import (
     cron_string_iterator,
     is_valid_cron_schedule,
     reverse_cron_string_iterator,
 )
-from dagster._utils import hash_collection, utc_datetime_from_timestamp
 
 from ..errors import (
     DagsterInvalidDefinitionError,
     DagsterInvalidDeserializationVersionError,
-    DagsterDefinitionChangedDeserializationError,
 )
 from .partition import (
     DEFAULT_DATE_FORMAT,
@@ -50,8 +49,6 @@ from .partition import (
     cron_schedule_from_schedule_type_and_offsets,
 )
 from .partition_key_range import PartitionKeyRange
-from dagster._serdes import whitelist_for_serdes
-from dagster._serdes.serdes import NamedTupleSerializer, FieldSerializer, WhitelistMap
 
 
 class TimeWindow(NamedTuple):
@@ -67,7 +64,7 @@ class TimeWindow(NamedTuple):
 
 
 class DatetimeFieldSerializer(FieldSerializer):
-    """TODO add docstring"""
+    """TODO add docstring."""
 
     # TODO test this
 
@@ -1582,7 +1579,9 @@ class TimeWindowPartitionsSubset(PartitionsSubset):
         )
 
     @classmethod
-    def tuples_to_time_windows(cls, tuples, partitions_def):
+    def tuples_to_time_windows(
+        cls, partitions_def: TimeWindowPartitionsDefinition, tuples: Sequence[Tuple[float, float]]
+    ) -> Sequence[TimeWindow]:
         return [
             TimeWindow(
                 pendulum.from_timestamp(tup[0], tz=partitions_def.timezone),
@@ -1592,34 +1591,46 @@ class TimeWindowPartitionsSubset(PartitionsSubset):
         ]
 
     @classmethod
-    def _deserialize_v1_v2_time_subset(
-        cls, serialized: str
-    ) -> Tuple[Optional[TimeWindowPartitionsDefinition], Sequence[TimeWindow], int]:
+    def _deserialize(
+        cls, serialized: str, partitions_def: Optional[TimeWindowPartitionsDefinition]
+    ) -> Tuple[TimeWindowPartitionsDefinition, Sequence[TimeWindow], int]:
         loaded = json.loads(serialized)
 
-        check.invariant(isinstance(loaded, dict))
+        if isinstance(loaded, list):
+            if partitions_def is None:
+                # TODO better error message
+                check.failed("No partitions def provided")
 
-        version = loaded.get("version")
-        if version is None or version == 1:
-            # TODO handle partiitons def here
-            deserialized_partitions_def = None
-            time_windows = cls.tuples_to_time_windows(loaded["time_windows"])
-            num_partitions = loaded["num_partitions"]
-        elif version == 2:
-            deserialized_partitions_def = deserialize_value(
-                loaded["time_partitions_def"], TimeWindowPartitionsDefinition
+            # backwards compatibility
+            time_windows = cls.tuples_to_time_windows(partitions_def, loaded)
+            num_partitions = sum(
+                len(partitions_def.get_partition_keys_in_time_window(time_window))
+                for time_window in time_windows
             )
-            time_windows = cls.tuples_to_time_windows(
-                loaded["time_windows"], deserialized_partitions_def
-            )
-            num_partitions = loaded["num_partitions"]
         else:
-            raise DagsterInvalidDeserializationVersionError(
-                "Attempted to deserialize partition subset with version"
-                f" {loaded.get('version')}, but only versions 1 and 2 are supported."
-            )
+            check.invariant(isinstance(loaded, dict))
 
-        return deserialized_partitions_def, time_windows, num_partitions
+            version = loaded.get("version")
+            if version is None or version == 1:
+                if partitions_def is None:
+                    # TODO better error message
+                    check.failed("No partitions def provided")
+
+                time_windows = cls.tuples_to_time_windows(partitions_def, loaded["time_windows"])
+                num_partitions = loaded["num_partitions"]
+            elif version == 2:
+                partitions_def = deserialize_value(
+                    loaded["time_partitions_def"], TimeWindowPartitionsDefinition
+                )
+                time_windows = cls.tuples_to_time_windows(partitions_def, loaded["time_windows"])
+                num_partitions = loaded["num_partitions"]
+            else:
+                raise DagsterInvalidDeserializationVersionError(
+                    "Attempted to deserialize partition subset with version"
+                    f" {loaded.get('version')}, but only versions 1 and 2 are supported."
+                )
+
+        return partitions_def, time_windows, num_partitions
 
     @classmethod
     def from_serialized(
@@ -1629,17 +1640,7 @@ class TimeWindowPartitionsSubset(PartitionsSubset):
             check.failed("Partitions definition must be a TimeWindowPartitionsDefinition")
         partitions_def = cast(TimeWindowPartitionsDefinition, partitions_def)
 
-        loaded = json.loads(serialized)
-
-        if isinstance(loaded, list):
-            # backwards compatibility
-            time_windows = cls.tuples_to_time_windows(loaded)
-            num_partitions = sum(
-                len(partitions_def.get_partition_keys_in_time_window(time_window))
-                for time_window in time_windows
-            )
-        else:
-            _, time_windows, num_partitions = cls._deserialize_v1_v2_time_subset(serialized)
+        _, time_windows, num_partitions = cls._deserialize(serialized, partitions_def)
 
         return TimeWindowPartitionsSubset(
             partitions_def, num_partitions=num_partitions, included_time_windows=time_windows
@@ -1647,10 +1648,9 @@ class TimeWindowPartitionsSubset(PartitionsSubset):
 
     @classmethod
     def deserialize_when_partitions_def_changed(cls, serialized: str) -> "PartitionsSubset":
-        partitions_def, time_windows, num_partitions = cls._deserialize_v1_v2_time_subset(
-            serialized
-        )
+        partitions_def, time_windows, num_partitions = cls._deserialize(serialized, None)
         check.invariant(partitions_def is not None)
+
         return TimeWindowPartitionsSubset(
             partitions_def, num_partitions=num_partitions, included_time_windows=time_windows
         )
@@ -1678,7 +1678,9 @@ class TimeWindowPartitionsSubset(PartitionsSubset):
         serialized: str,
     ) -> bool:
         data = json.loads(serialized)
-        return isinstance(data, list) or (
+        return (
+            isinstance(data, list) and all(isinstance(time_window, list) for time_window in data)
+        ) or (
             isinstance(data, dict)
             and data.get("time_windows") is not None
             and data.get("num_partitions") is not None
@@ -1692,6 +1694,7 @@ class TimeWindowPartitionsSubset(PartitionsSubset):
         return cls(partitions_def, 0, [], set())
 
     def serialize(self) -> str:
+        partitions_def = cast(TimeWindowPartitionsDefinition, self.partitions_def)
         return json.dumps(
             {
                 "version": self.SERIALIZATION_VERSION,
@@ -1703,7 +1706,14 @@ class TimeWindowPartitionsSubset(PartitionsSubset):
                 ],
                 "num_partitions": self._num_partitions,
                 "time_partitions_def": serialize_value(
-                    cast(TimeWindowPartitionsDefinition, self.partitions_def)
+                    TimeWindowPartitionsDefinition(
+                        start=partitions_def.start,
+                        fmt=partitions_def.fmt,
+                        timezone=partitions_def.timezone,
+                        end=partitions_def.end,
+                        end_offset=partitions_def.end_offset,
+                        cron_schedule=partitions_def.cron_schedule,
+                    )
                 ),
             }
         )

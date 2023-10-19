@@ -5,11 +5,11 @@ from typing import AbstractSet, Any, Callable, Dict, Iterable, Mapping, Optional
 
 from dagster import _check as check
 from dagster._core.definitions.partition import (
+    DefinitionChangedPartitionsSubset,
     PartitionsDefinition,
     PartitionsSubset,
     can_deserialize,
     from_serialized,
-    DefinitionChangedPartitionsSubset,
 )
 from dagster._core.errors import (
     DagsterDefinitionChangedDeserializationError,

@@ -686,7 +686,6 @@ def execute_asset_backfill_iteration(
         check.failed("Asset backfill missing serialized_asset_backfill_data")
 
     try:
-        # here
         previous_asset_backfill_data = AssetBackfillData.from_serialized(
             backfill.serialized_asset_backfill_data, asset_graph, backfill.backfill_timestamp
         )

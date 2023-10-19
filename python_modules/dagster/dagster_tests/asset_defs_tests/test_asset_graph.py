@@ -656,7 +656,7 @@ def test_asset_graph_partial_deserialization(asset_graph_from_assets):
     ).to_storage_dict(None)
 
     asset_graph2 = get_ag2()
-    assert not AssetGraphSubset.can_deserialize(ag1_storage_dict, asset_graph2)
+    assert AssetGraphSubset.can_deserialize(ag1_storage_dict, asset_graph2)
     with pytest.raises(DagsterDefinitionChangedDeserializationError):
         AssetGraphSubset.from_storage_dict(
             ag1_storage_dict,
@@ -671,7 +671,10 @@ def test_asset_graph_partial_deserialization(asset_graph_from_assets):
         partitions_subsets_by_asset_key={
             AssetKey("partitioned1"): daily_partitions_def.subset_with_partition_keys(
                 ["2022-01-01", "2022-01-02", "2022-01-03"]
-            )
+            ),
+            AssetKey("partitioned2"): daily_partitions_def.subset_with_partition_keys(
+                ["2022-01-01", "2022-01-02", "2022-01-03"]
+            ),
         },
         non_partitioned_asset_keys={AssetKey("unpartitioned2")},
     )
